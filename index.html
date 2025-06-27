@@ -865,7 +865,7 @@
         scoreCard.style.width = "350px";
         scoreCard.style.background =
           "linear-gradient(135deg, #1e3a8a, #3b82f6)";
-        scoreCard.innerHTML = `<h3 class="text-3xl font-bold">Memory Game</h3><p class="text-lg mt-2">Skor Akhir Saya</p><p class="text-8xl font-bold my-4">${score}</p><p class="text-xs">Copyright by riyan 2025</p>`;
+        scoreCard.innerHTML = `<h3 class="text-3xl font-bold">Memory Game</h3><p class="text-lg mt-2">Skor Akhir Saya</p><p class="text-8xl font-bold my-4">${score}</p><p class="text-xs">Bisakah kamu mengalahkanku?</p>`;
         scoreCard.style.position = "absolute";
         scoreCard.style.left = "-9999px";
         document.body.appendChild(scoreCard);
@@ -879,10 +879,14 @@
             canvas.toBlob(resolve, "image/png")
           );
           const file = new File([blob], "skor-game.png", { type: "image/png" });
+
+          // Teks tambahan dengan link game
+          const shareText = `Ayo mainkan game Memory Card Seru ini di link berikut: ${window.location.href}\nSkorku: ${score}! Bisakah kamu mengalahkanku?`;
+
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({
               title: "Skor Memory Game",
-              text: `Wow, skorku ${score} di Memory Game! Ayo mainkan juga!`,
+              text: shareText,
               files: [file],
             });
           } else {
@@ -893,13 +897,22 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            alert(
-              "Skor telah diunduh! Browser ini tidak mendukung berbagi langsung."
-            );
+
+            // Fallback untuk copy text ke clipboard
+            try {
+              await navigator.clipboard.writeText(shareText);
+              alert(
+                "Gambar skor telah diunduh dan teks link game telah disalin ke clipboard!\nAnda bisa membagikannya secara manual."
+              );
+            } catch (err) {
+              alert(
+                `Gambar skor telah diunduh!\nAnda bisa membagikan secara manual dengan teks:\n\n${shareText}`
+              );
+            }
           }
         } catch (err) {
-          alert("Gagal membagikan skor.");
           console.error("Share failed:", err);
+          alert("Gagal membagikan skor. Silakan coba lagi.");
         } finally {
           document.body.removeChild(scoreCard);
         }
