@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memory Card Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+      body {
+        font-family: "Poppins", sans-serif;
+        perspective: 1000px;
+        /* Menggunakan bg.png sebagai latar belakang */
+        background-image: url("bg.png");
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+      .game-wrapper {
+        background: rgba(30, 58, 138, 0.9);
+        backdrop-filter: blur(10px);
+        width: 100%;
+      }
+      #game-board {
+        display: grid;
+        /* Kolom akan diatur oleh JavaScript */
+        gap: 0.5rem;
+      }
+      @media (min-width: 640px) {
+        #game-board {
+          gap: 0.75rem; /* Gap diperbesar */
+        }
+      }
+      .card {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        position: relative;
+        transform-style: preserve-3d;
+        transition: transform 0.6s;
+        cursor: pointer;
+      }
+      .card.flipped,
+      .card.matched {
+        transform: rotateY(180deg);
+      }
+      .card-face {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        backface-visibility: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem; /* Sudut lebih bulat */
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+      }
+      .card-front {
+        background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        color: white;
+        font-size: 3rem; /* Font '?' diperbesar */
+      }
+      .card-back {
+        background-color: #f9fafb;
+        transform: rotateY(180deg);
+        padding: 0.25rem;
+      }
+      .card-back img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 0.375rem;
+      }
+      .card-back .fallback-icon {
+        width: 70%; /* Ikon diperbesar */
+        height: 70%;
+        color: #3b82f6;
+      }
+      #timer-bar-inner {
+        transition: width 1s linear;
+      }
+      .modal {
+        background-color: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
+      }
+      .icon-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 9999px;
+        transition: background-color 0.2s;
+      }
+      .icon-btn:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      #fun-fact {
+        min-height: 5rem; /* Memberi ruang untuk teks fakta */
+        background-color: rgba(0, 0, 0, 0.1);
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Elemen Audio -->
+    <audio id="sound-bg" src="bgsound.mp3" loop></audio>
+    <audio id="sound-flip" src="kartuBukaTutup.mp3"></audio>
+    <audio id="sound-match" src="benar.mp3"></audio>
+    <audio id="sound-mismatch" src="salah.mp3"></audio>
+    <audio id="sound-level-win" src="winlevel1.mp3"></audio>
+    <audio id="sound-game-win" src="winsound.mp3"></audio>
+    <audio id="sound-time-up" src="waktu habis.mp3"></audio>
+    <audio id="sound-tick-tock" src="waktu 10 detik.mp3" loop></audio>
+
+    <div
+      id="game-wrapper"
+      class="max-w-lg p-3 sm:p-6 rounded-2xl shadow-2xl relative -mt-20 text-white"
+    >
+      <!-- Halaman Awal -->
+      <div id="start-screen" class="text-center">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-2">Memory Game</h1>
+        <p class="text-slate-300 mb-8">
+          Uji ingatanmu dan cocokkan semua kartu!
+        </p>
+        <button
+          id="start-btn"
+          class="w-full mb-4 bg-yellow-500 text-slate-900 font-bold py-3 rounded-xl text-lg sm:text-xl shadow-lg transform hover:scale-105 active:scale-95 transition-transform duration-200"
+        >
+          Mulai Game
+        </button>
+        <button
+          id="info-btn"
+          class="w-full bg-slate-600 text-white font-bold py-3 rounded-xl text-lg sm:text-xl shadow-lg transform hover:scale-105 active:scale-95 transition-transform duration-200"
+        >
+          Info Game
+        </button>
+      </div>
+
+      <!-- Halaman Game -->
+      <div id="game-screen" class="hidden">
+        <div class="mb-2 text-center">
+          <h2
+            id="level-title"
+            class="text-xl sm:text-2xl font-bold text-yellow-300"
+          ></h2>
+        </div>
+        <div class="mb-4 flex justify-between items-center gap-2">
+          <div class="flex items-center gap-4">
+            <!-- Gap diperbesar -->
+            <div>
+              <span class="font-semibold text-slate-300 text-sm sm:text-base"
+                >LEVEL</span
+              >
+              <span id="level" class="text-2xl sm:text-3xl font-bold block"
+                >1</span
+              >
+            </div>
+            <div>
+              <span class="font-semibold text-slate-300 text-sm sm:text-base"
+                >SKOR</span
+              >
+              <span
+                id="score"
+                class="text-2xl sm:text-3xl font-bold text-yellow-300 block"
+                >0</span
+              >
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="pause-btn" class="icon-btn">
+              <svg
+                id="play-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="hidden"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <polygon points="10 8 16 12 10 16 10 8"></polygon>
+              </svg>
+              <svg
+                id="pause-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            </button>
+            <button id="sound-btn" class="icon-btn">
+              <svg
+                id="sound-on-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path
+                  d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"
+                ></path>
+              </svg>
+              <svg
+                id="sound-off-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="hidden"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="1" x2="1" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="w-full bg-black/20 rounded-full h-4 sm:h-5">
+            <div
+              id="timer-bar-inner"
+              class="bg-yellow-400 h-4 sm:h-5 rounded-full"
+              style="width: 100%"
+            ></div>
+          </div>
+          <p class="text-center text-sm sm:text-base mt-1">
+            Waktu: <span id="timer">100</span>s
+          </p>
+        </div>
+        <div id="game-board-container" class="relative">
+          <div id="game-board"></div>
+        </div>
+      </div>
+
+      <!-- Pop-up Jeda -->
+      <div
+        id="pause-modal"
+        class="modal hidden fixed inset-0 z-20 flex items-center justify-center p-4"
+      >
+        <div
+          class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl text-slate-800 text-center max-w-sm w-full"
+        >
+          <h2 class="text-2xl sm:text-3xl font-bold mb-2">Game Dijeda</h2>
+          <p
+            id="pause-level-title"
+            class="text-slate-600 mb-4 text-base sm:text-lg font-semibold"
+          ></p>
+          <div
+            id="fun-fact"
+            class="text-slate-700 text-sm sm:text-base mb-6 flex items-center justify-center text-left"
+          >
+            Memuat fakta menarik...
+          </div>
+          <button
+            id="resume-btn"
+            class="w-full bg-blue-500 text-white font-bold py-3 rounded-xl text-lg sm:text-xl"
+          >
+            Lanjutkan
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Info Game -->
+      <div
+        id="info-modal"
+        class="modal hidden fixed inset-0 z-30 flex items-center justify-center p-4"
+      >
+        <div
+          class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl text-slate-800 text-center max-w-md w-full"
+        >
+          <h2 class="text-xl sm:text-2xl font-bold mb-4">
+            Cara Bermain & Poin
+          </h2>
+          <div
+            class="text-slate-600 mb-6 text-sm sm:text-base text-left space-y-2"
+          >
+            <p>- Cocokkan semua pasangan kartu sebelum waktu habis.</p>
+            <p>
+              - <span class="font-bold text-green-600">Benar: +3 Poin</span>
+            </p>
+            <p>- <span class="font-bold text-red-600">Salah: -2 Poin</span></p>
+            <div>
+              <p class="font-bold text-blue-600">
+                Bonus Waktu (Waktu Maks: 100 detik):
+              </p>
+              <ul class="list-disc list-inside ml-4">
+                <li>
+                  Level 1:
+                  <span class="font-semibold">70-100s (+3)</span>,
+                  <span class="font-semibold">30-69s (+2)</span>,
+                  <span class="font-semibold">0-29s (+1)</span>
+                </li>
+                <li>
+                  Level 2:
+                  <span class="font-semibold">70-100s (+4)</span>,
+                  <span class="font-semibold">30-69s (+3)</span>,
+                  <span class="font-semibold">0-29s (+2)</span>
+                </li>
+                <li>
+                  Level 3:
+                  <span class="font-semibold">70-100s (+5)</span>,
+                  <span class="font-semibold">30-69s (+4)</span>,
+                  <span class="font-semibold">0-29s (+2)</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <button
+            id="close-info-btn"
+            class="bg-blue-500 text-white font-bold py-2 px-8 rounded-full text-base sm:text-lg"
+          >
+            Mengerti
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Level Selesai -->
+      <div
+        id="level-complete-modal"
+        class="modal hidden fixed inset-0 z-20 flex items-center justify-center p-4"
+      >
+        <div
+          class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl text-slate-800 text-center max-w-sm w-full"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-20 w-20 text-green-500 mx-auto mb-4"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <h2 class="text-2xl sm:text-3xl font-bold mb-2">Level Selesai!</h2>
+          <p
+            id="bonus-points-message"
+            class="text-slate-500 mb-4 text-base sm:text-lg"
+          ></p>
+          <button
+            id="next-level-btn"
+            class="w-full bg-green-500 text-white font-bold py-3 rounded-xl text-lg sm:text-xl"
+          >
+            Lanjut
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Kemenangan / Game Over -->
+      <div
+        id="end-modal"
+        class="modal hidden fixed inset-0 z-20 flex items-center justify-center p-4"
+      >
+        <div
+          class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl text-center transform scale-95 transition-transform duration-300 max-w-sm"
+        >
+          <h2
+            id="end-title"
+            class="text-3xl sm:text-4xl font-bold text-yellow-500 mb-4"
+          >
+            Selamat!
+          </h2>
+          <p id="end-message" class="text-slate-600 text-base sm:text-lg mb-2">
+            Kamu menyelesaikan semua level!
+          </p>
+          <p
+            id="final-score"
+            class="text-2xl sm:text-3xl font-bold text-slate-800 mb-6"
+          >
+            Skor Akhir: 0
+          </p>
+          <div class="flex flex-col gap-3">
+            <button
+              id="play-again-btn"
+              class="bg-blue-500 text-white font-bold py-3 px-10 rounded-full text-lg sm:text-xl shadow-lg transform hover:scale-105"
+            >
+              Main Lagi
+            </button>
+            <button
+              id="share-btn"
+              class="bg-green-500 text-white font-bold py-3 px-10 rounded-full text-lg sm:text-xl shadow-lg transform hover:scale-105"
+            >
+              Bagikan Skor
+            </button>
+            <button
+              id="exit-btn"
+              class="bg-gray-500 text-white font-bold py-3 px-10 rounded-full text-lg sm:text-xl shadow-lg transform hover:scale-105"
+            >
+              Keluar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="absolute bottom-20 left-0 right-0 text-center w-full">
+      <div class="bg-white bg-opacity-80 rounded-lg inline-block px-4 py-2">
+        <p
+          class="text-sm text-blue-800 font-bold border-2 border-blue-500 rounded-lg px-2 py-1 inline-block"
+          style="text-shadow: 0 0 10px rgba(59, 130, 246, 0.5)"
+        >
+          @Copyright by Riyan 2025
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      // --- Konfigurasi Level ---
+      const LEVEL_CONFIG = [
+        {
+          theme: "Serangga",
+          images: Array.from(
+            { length: 10 },
+            (_, i) => `serangga/serangga ${i + 1}.png`
+          ),
+          pairs: 6, // Mudah: 6 pasang (12 kartu)
+          grid: "grid-cols-3", // 3x4 layout
+        },
+        {
+          theme: "Galaksi",
+          images: [
+            "galaxi/galaxi 10.png",
+            "galaxi/galaxi 8.png",
+            "galaxi/galaxi 9.png",
+            "galaxi/galaxi 7.png",
+            "galaxi/galaxi 5.png",
+            "galaxi/galaxi 6.png",
+            "galaxi/galaxi 3.png",
+            "galaxi/galaxi 4.png",
+            "galaxi/galaxi 1.png",
+            "galaxi/galaxi 2.png",
+          ],
+          pairs: 8, // Sedang: 8 pasang (16 kartu)
+          grid: "grid-cols-4", // 4x4 layout
+        },
+        {
+          theme: "Kelapa Sawit",
+          images: [
+            "sawit/sawit 10.png",
+            "sawit/sawit 9.png",
+            "sawit/sawit 8.png",
+            "sawit/sawit 7.png",
+            "sawit/sawit 6.png",
+            "sawit/sawit 5.png",
+            "sawit/sawit 3.png",
+            "sawit/sawit 4.png",
+            "sawit/sawit 1.png",
+            "sawit/sawit 2.png",
+          ],
+          pairs: 10, // Sulit: 10 pasang (20 kartu)
+          grid: "grid-cols-4", // 4x5 layout
+        },
+      ];
+
+      const FALLBACK_ICONS = [
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2v6h-2v-6zm0-3h2v2h-2V6z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v10z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="fallback-icon"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
+      ];
+
+      // --- Elemen DOM ---
+      const startScreen = document.getElementById("start-screen");
+      const gameScreen = document.getElementById("game-screen");
+      const infoModal = document.getElementById("info-modal");
+      const endModal = document.getElementById("end-modal");
+      const gameBoard = document.getElementById("game-board");
+      const pauseModal = document.getElementById("pause-modal");
+      const levelCompleteModal = document.getElementById(
+        "level-complete-modal"
+      );
+
+      const startBtn = document.getElementById("start-btn");
+      const infoBtn = document.getElementById("info-btn");
+      const closeInfoBtn = document.getElementById("close-info-btn");
+      const playAgainBtn = document.getElementById("play-again-btn");
+      const shareBtn = document.getElementById("share-btn");
+      const exitBtn = document.getElementById("exit-btn");
+      const pauseBtn = document.getElementById("pause-btn");
+      const soundBtn = document.getElementById("sound-btn");
+      const resumeBtn = document.getElementById("resume-btn");
+      const nextLevelBtn = document.getElementById("next-level-btn");
+
+      const scoreDisplay = document.getElementById("score");
+      const levelDisplay = document.getElementById("level");
+      const levelTitleDisplay = document.getElementById("level-title");
+      const timerDisplay = document.getElementById("timer");
+      const timerBarInner = document.getElementById("timer-bar-inner");
+      const endTitle = document.getElementById("end-title");
+      const endMessage = document.getElementById("end-message");
+      const finalScoreDisplay = document.getElementById("final-score");
+      const pauseLevelTitle = document.getElementById("pause-level-title");
+      const funFactDisplay = document.getElementById("fun-fact");
+      const bonusPointsMessage = document.getElementById(
+        "bonus-points-message"
+      );
+
+      const playIcon = document.getElementById("play-icon");
+      const pauseIcon = document.getElementById("pause-icon");
+      const soundOnIcon = document.getElementById("sound-on-icon");
+      const soundOffIcon = document.getElementById("sound-off-icon");
+
+      // --- Elemen Suara ---
+      const sounds = {
+        bg: document.getElementById("sound-bg"),
+        flip: document.getElementById("sound-flip"),
+        match: document.getElementById("sound-match"),
+        mismatch: document.getElementById("sound-mismatch"),
+        levelWin: document.getElementById("sound-level-win"),
+        gameWin: document.getElementById("sound-game-win"),
+        timeUp: document.getElementById("sound-time-up"),
+        tickTock: document.getElementById("sound-tick-tock"),
+      };
+
+      // --- Status Game ---
+      let score = 0,
+        currentLevel = 1,
+        timeLeft = 100;
+      let firstCard,
+        secondCard,
+        hasFlippedCard = false,
+        lockBoard = false;
+      let matchedPairs = 0,
+        timerInterval;
+      let isSoundOn = true,
+        isPaused = false,
+        isGameActive = false;
+      let userHasInteracted = false;
+      const TIME_LIMIT = 100;
+
+      // --- Kontrol Suara ---
+      function playSound(type) {
+        if (!isSoundOn || !userHasInteracted) return;
+        const sound = sounds[type];
+        if (sound) {
+          sound.currentTime = 0;
+          sound.play().catch((e) => console.log("Sound play failed:", e));
+        }
+      }
+
+      function stopAllSounds() {
+        Object.values(sounds).forEach((sound) => {
+          if (sound) {
+            sound.pause();
+            sound.currentTime = 0;
+          }
+        });
+      }
+
+      function toggleBgSound(play) {
+        if (!sounds.bg) return;
+        if (!isSoundOn || !userHasInteracted) {
+          sounds.bg.pause();
+          return;
+        }
+        if (play) {
+          sounds.bg
+            .play()
+            .catch((e) => console.log("BG Sound play failed:", e));
+        } else {
+          sounds.bg.pause();
+        }
+      }
+
+      function toggleTickTock(play) {
+        if (!sounds.tickTock) return;
+        if (!isSoundOn || !userHasInteracted) {
+          sounds.tickTock.pause();
+          return;
+        }
+        if (play) {
+          sounds.tickTock
+            .play()
+            .catch((e) => console.log("Tick Tock sound play failed:", e));
+        } else {
+          sounds.tickTock.pause();
+        }
+      }
+
+      // --- Fungsi Game ---
+      function calculateTimeBonus() {
+        let bonus = 0;
+
+        if (currentLevel === 1) {
+          if (timeLeft >= 70) bonus = 3;
+          else if (timeLeft >= 30) bonus = 2;
+          else if (timeLeft >= 0) bonus = 1;
+        } else if (currentLevel === 2) {
+          if (timeLeft >= 70) bonus = 4;
+          else if (timeLeft >= 30) bonus = 3;
+          else if (timeLeft >= 0) bonus = 2;
+        } else if (currentLevel === 3) {
+          if (timeLeft >= 70) bonus = 5;
+          else if (timeLeft >= 30) bonus = 4;
+          else if (timeLeft >= 0) bonus = 2;
+        }
+
+        score += bonus;
+        return bonus;
+      }
+
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      }
+
+      function createBoard() {
+        const config = LEVEL_CONFIG[currentLevel - 1];
+        const imagesForLevel = config.images.slice(0, config.pairs);
+        const cardContent = shuffle([...imagesForLevel, ...imagesForLevel]);
+
+        gameBoard.innerHTML = "";
+        matchedPairs = 0;
+
+        gameBoard.className = "grid gap-2 sm:gap-3";
+        gameBoard.classList.add(config.grid);
+
+        cardContent.forEach((imageUrl) => {
+          const card = document.createElement("div");
+          card.classList.add("card");
+          card.dataset.image = imageUrl;
+          const fallbackIconIndex =
+            imagesForLevel.indexOf(imageUrl) % FALLBACK_ICONS.length;
+          const fallbackIcon = FALLBACK_ICONS[fallbackIconIndex];
+
+          card.innerHTML = `
+            <div class="card-face card-front">?</div>
+            <div class="card-face card-back">
+              <img src="${imageUrl}" alt="Kartu" class="absolute inset-0 w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="hidden items-center justify-center w-full h-full">${fallbackIcon}</div>
+            </div>`;
+          card.addEventListener("click", () => flipCard(card));
+          gameBoard.appendChild(card);
+        });
+      }
+
+      function flipCard(card) {
+        if (
+          lockBoard ||
+          card === firstCard ||
+          card.classList.contains("matched") ||
+          isPaused
+        ) {
+          return;
+        }
+        playSound("flip");
+        card.classList.add("flipped");
+
+        if (!hasFlippedCard) {
+          hasFlippedCard = true;
+          firstCard = card;
+          return;
+        }
+        secondCard = card;
+        checkForMatch();
+      }
+
+      function checkForMatch() {
+        const isMatch = firstCard.dataset.image === secondCard.dataset.image;
+        isMatch ? disableCards() : unflipCards();
+      }
+
+      function disableCards() {
+        firstCard.classList.add("matched");
+        secondCard.classList.add("matched");
+        score += 3; // Benar: +3 poin
+        playSound("match");
+        updateScore();
+        matchedPairs++;
+
+        const config = LEVEL_CONFIG[currentLevel - 1];
+        if (matchedPairs === config.pairs) {
+          clearInterval(timerInterval);
+          toggleTickTock(false);
+          playSound("levelWin");
+
+          const bonus = calculateTimeBonus();
+          updateScore();
+
+          bonusPointsMessage.textContent = `Kamu mendapat bonus waktu +${bonus} poin!`;
+          levelCompleteModal.classList.remove("hidden");
+        }
+        resetBoardState();
+      }
+
+      function unflipCards() {
+        lockBoard = true;
+        score = Math.max(0, score - 2); // Salah: -2 poin
+        updateScore();
+        playSound("mismatch");
+        setTimeout(() => {
+          firstCard.classList.remove("flipped");
+          secondCard.classList.remove("flipped");
+          resetBoardState();
+        }, 1200);
+      }
+
+      function resetBoardState() {
+        [hasFlippedCard, lockBoard, firstCard, secondCard] = [
+          false,
+          false,
+          null,
+          null,
+        ];
+      }
+
+      function nextLevel() {
+        if (currentLevel < LEVEL_CONFIG.length) {
+          currentLevel++;
+          startLevel();
+        } else {
+          toggleBgSound(false);
+          playSound("gameWin");
+          showEndScreen(true); // Menang
+        }
+      }
+
+      function startLevel() {
+        const config = LEVEL_CONFIG[currentLevel - 1];
+        levelDisplay.textContent = currentLevel;
+        levelTitleDisplay.textContent = `Tema: ${config.theme}`;
+        resetBoardState();
+        createBoard();
+        startTimer();
+      }
+
+      function firstInteraction() {
+        if (!userHasInteracted) {
+          userHasInteracted = true;
+          Object.values(sounds).forEach((sound) => {
+            if (sound) {
+              sound.play().catch(() => {});
+              sound.pause();
+              sound.currentTime = 0;
+            }
+          });
+          toggleBgSound(true);
+        }
+      }
+
+      function startGame() {
+        firstInteraction();
+        stopAllSounds();
+        isGameActive = true;
+        startScreen.classList.add("hidden");
+        gameScreen.classList.remove("hidden");
+        score = 0;
+        currentLevel = 1;
+        updateScore();
+        startLevel();
+        toggleBgSound(true);
+      }
+
+      function updateScore() {
+        scoreDisplay.textContent = score;
+      }
+
+      function startTimer() {
+        timeLeft = TIME_LIMIT; // Sekarang akan menggunakan 100 detik
+        updateTimerDisplay();
+        timerInterval = setInterval(() => {
+          if (!isPaused) {
+            timeLeft--;
+            updateTimerDisplay();
+            if (timeLeft <= 10 && timeLeft > 0) {
+              toggleTickTock(true);
+            }
+            if (timeLeft <= 0) {
+              clearInterval(timerInterval);
+              toggleBgSound(false);
+              toggleTickTock(false);
+              playSound("timeUp");
+              showEndScreen(false);
+            }
+          }
+        }, 1000);
+      }
+
+      function updateTimerDisplay() {
+        timerDisplay.textContent = timeLeft;
+        timerBarInner.style.width = `${(timeLeft / TIME_LIMIT) * 100}%`;
+      }
+
+      function showEndScreen(isWin) {
+        isGameActive = false;
+        toggleBgSound(false);
+        toggleTickTock(false);
+        if (isWin) {
+          endTitle.textContent = "Selamat!";
+          endMessage.textContent = "Kamu menyelesaikan semua level!";
+        } else {
+          endTitle.textContent = "Waktu Habis!";
+          endMessage.textContent = `Kamu gagal di level ${currentLevel}.`;
+        }
+        finalScoreDisplay.textContent = `Skor Akhir: ${score}`;
+        endModal.classList.remove("hidden");
+        setTimeout(() => {
+          const modalContent = endModal.querySelector("div > div");
+          if (modalContent) modalContent.classList.add("scale-100");
+        }, 10);
+      }
+
+      function exitGame() {
+        stopAllSounds();
+        endModal.classList.add("hidden");
+        gameScreen.classList.add("hidden");
+        startScreen.classList.remove("hidden");
+      }
+
+      async function generateAndShareScore() {
+        const scoreCard = document.createElement("div");
+        scoreCard.className = "p-6 rounded-lg text-white text-center";
+        scoreCard.style.width = "350px";
+        scoreCard.style.background =
+          "linear-gradient(135deg, #1e3a8a, #3b82f6)";
+        scoreCard.innerHTML = `<h3 class="text-3xl font-bold">Memory Game</h3><p class="text-lg mt-2">Skor Akhir Saya</p><p class="text-8xl font-bold my-4">${score}</p><p class="text-xs">Copyright by riyan 2025</p>`;
+        scoreCard.style.position = "absolute";
+        scoreCard.style.left = "-9999px";
+        document.body.appendChild(scoreCard);
+
+        try {
+          const canvas = await html2canvas(scoreCard, {
+            useCORS: true,
+            backgroundColor: null,
+          });
+          const blob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/png")
+          );
+          const file = new File([blob], "skor-game.png", { type: "image/png" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: "Skor Memory Game",
+              text: `Wow, skorku ${score} di Memory Game! Ayo mainkan juga!`,
+              files: [file],
+            });
+          } else {
+            const imageUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = imageUrl;
+            link.download = "skor-game.png";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert(
+              "Skor telah diunduh! Browser ini tidak mendukung berbagi langsung."
+            );
+          }
+        } catch (err) {
+          alert("Gagal membagikan skor.");
+          console.error("Share failed:", err);
+        } finally {
+          document.body.removeChild(scoreCard);
+        }
+      }
+
+      async function fetchFunFact(theme) {
+        funFactDisplay.textContent = "Memuat fakta menarik...";
+        const prompt = `Berikan satu fakta menarik tentang ${theme} dalam satu atau dua kalimat singkat.`;
+
+        try {
+          let chatHistory = [];
+          chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+          const payload = { contents: chatHistory };
+          const apiKey = "AIzaSyDrVTUfdsdlQ5YnVcAzRYhQa-yj2WyBEp4";
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+          const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `API request failed with status ${response.status}`
+            );
+          }
+
+          const result = await response.json();
+
+          if (
+            result.candidates &&
+            result.candidates.length > 0 &&
+            result.candidates[0].content &&
+            result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0
+          ) {
+            const text = result.candidates[0].content.parts[0].text;
+            funFactDisplay.textContent = text;
+          } else {
+            funFactDisplay.textContent = `Tidak dapat menemukan fakta menarik untuk ${theme} saat ini.`;
+          }
+        } catch (error) {
+          console.error("Error fetching fun fact:", error);
+          funFactDisplay.textContent =
+            "Gagal memuat fakta. Silakan coba lagi nanti.";
+        }
+      }
+
+      function togglePause() {
+        if (!isGameActive) return;
+        isPaused = !isPaused;
+
+        playIcon.classList.toggle("hidden");
+        pauseIcon.classList.toggle("hidden");
+        pauseModal.classList.toggle("hidden");
+
+        if (isPaused) {
+          const config = LEVEL_CONFIG[currentLevel - 1];
+          pauseLevelTitle.textContent = `Tema: ${config.theme}`;
+          fetchFunFact(config.theme); // Memanggil fungsi untuk mengambil fakta
+          toggleBgSound(false);
+          toggleTickTock(false);
+        } else {
+          toggleBgSound(true);
+          if (timeLeft <= 10 && timeLeft > 0) {
+            toggleTickTock(true);
+          }
+        }
+      }
+
+      function toggleSound() {
+        isSoundOn = !isSoundOn;
+        soundOnIcon.classList.toggle("hidden");
+        soundOffIcon.classList.toggle("hidden");
+
+        Object.values(sounds).forEach((sound) => {
+          if (sound) sound.muted = !isSoundOn;
+        });
+
+        if (isSoundOn) {
+          if (isGameActive && !isPaused) {
+            toggleBgSound(true);
+          }
+        }
+      }
+
+      // --- Event Listeners ---
+      document.body.addEventListener("click", firstInteraction, { once: true });
+      startBtn.addEventListener("click", startGame);
+      infoBtn.addEventListener("click", () =>
+        infoModal.classList.remove("hidden")
+      );
+      closeInfoBtn.addEventListener("click", () =>
+        infoModal.classList.add("hidden")
+      );
+      playAgainBtn.addEventListener("click", () => {
+        endModal.classList.add("hidden");
+        startGame();
+      });
+      shareBtn.addEventListener("click", generateAndShareScore);
+      exitBtn.addEventListener("click", exitGame);
+      pauseBtn.addEventListener("click", togglePause);
+      resumeBtn.addEventListener("click", togglePause);
+      soundBtn.addEventListener("click", toggleSound);
+      nextLevelBtn.addEventListener("click", () => {
+        levelCompleteModal.classList.add("hidden");
+        nextLevel();
+      });
+    </script>
+  </body>
+</html>
